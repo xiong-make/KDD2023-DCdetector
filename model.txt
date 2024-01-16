@@ -1,0 +1,43 @@
+DCdetector(
+  (embedding_patch_size): ModuleList(
+    (0): DataEmbedding(
+      (value_embedding): TokenEmbedding(
+        (tokenConv): Conv1d(57, 256, kernel_size=(3,), stride=(1,), padding=(1,), bias=False, padding_mode=circular)
+      )
+      (position_embedding): PositionalEmbedding()
+      (dropout): Dropout(p=0.0, inplace=False)
+    )
+  )
+  (embedding_patch_num): ModuleList(
+    (0): DataEmbedding(
+      (value_embedding): TokenEmbedding(
+        (tokenConv): Conv1d(1, 256, kernel_size=(3,), stride=(1,), padding=(1,), bias=False, padding_mode=circular)
+      )
+      (position_embedding): PositionalEmbedding()
+      (dropout): Dropout(p=0.0, inplace=False)
+    )
+  )
+  (embedding_window_size): DataEmbedding(
+    (value_embedding): TokenEmbedding(
+      (tokenConv): Conv1d(38, 256, kernel_size=(3,), stride=(1,), padding=(1,), bias=False, padding_mode=circular)
+    )
+    (position_embedding): PositionalEmbedding()
+    (dropout): Dropout(p=0.0, inplace=False)
+  )
+  (encoder): Encoder(
+    (attn_layers): ModuleList(
+      (0-2): 3 x AttentionLayer(
+        (norm): LayerNorm((256,), eps=1e-05, elementwise_affine=True)
+        (inner_attention): DAC_structure(
+          (dropout): Dropout(p=0.0, inplace=False)
+        )
+        (patch_query_projection): Linear(in_features=256, out_features=256, bias=True)
+        (patch_key_projection): Linear(in_features=256, out_features=256, bias=True)
+        (out_projection): Linear(in_features=256, out_features=256, bias=True)
+        (value_projection): Linear(in_features=256, out_features=256, bias=True)
+      )
+    )
+    (norm): LayerNorm((256,), eps=1e-05, elementwise_affine=True)
+  )
+  (projection): Linear(in_features=256, out_features=38, bias=True)
+)

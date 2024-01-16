@@ -10,21 +10,38 @@ from data_factory.data_loader import get_loader_segment
 from einops import rearrange
 from metrics.metrics import *
 import warnings
+
 warnings.filterwarnings('ignore')
+
+'''
+KL（Kullback-Leibler）散度，也称为相对熵，是一种用于衡量两个概率分布之间差异的度量。
+'''
+
 
 def my_kl_loss(p, q):
     res = p * (torch.log(p + 0.0001) - torch.log(q + 0.0001))
     return torch.mean(torch.sum(res, dim=-1), dim=1)
 
+
 def adjust_learning_rate(optimizer, epoch, lr_):
+    # 每经过一个 epoch 就将学习率除以 2
     lr_adjust = {epoch: lr_ * (0.5 ** ((epoch - 1) // 1))}
     if epoch in lr_adjust.keys():
         lr = lr_adjust[epoch]
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
+
 class EarlyStopping:
     def __init__(self, patience=7, verbose=False, dataset_name='', delta=0):
+        """
+        Parameters
+        ----------
+        patience: 指定在性能不再提升时要等待的 epochs 数
+        verbose: 如果为 True，则在每次性能提升时输出相关信息。
+        dataset_name:
+        delta: 指定性能提升的阈值，只有当性能提升超过该阈值时才被认为是有效的提升
+        """
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
@@ -58,38 +75,42 @@ class EarlyStopping:
         self.val_loss_min = val_loss
         self.val_loss2_min = val_loss2
 
-        
+
 class Solver(object):
     DEFAULTS = {}
 
     def __init__(self, config):
-
+        # 方便在创建对象时可以使用默认配置，同时允许用户通过传入的 config 参数进行定制化配置
         self.__dict__.update(Solver.DEFAULTS, **config)
 
-        self.train_loader = get_loader_segment(self.index, 'dataset/'+self.data_path, batch_size=self.batch_size, win_size=self.win_size, mode='train', dataset=self.dataset, )
-        self.vali_loader = get_loader_segment(self.index, 'dataset/'+self.data_path, batch_size=self.batch_size, win_size=self.win_size, mode='val', dataset=self.dataset)
-        self.test_loader = get_loader_segment(self.index, 'dataset/'+self.data_path, batch_size=self.batch_size, win_size=self.win_size, mode='test', dataset=self.dataset)
-        self.thre_loader = get_loader_segment(self.index, 'dataset/'+self.data_path, batch_size=self.batch_size, win_size=self.win_size, mode='thre', dataset=self.dataset)
+        self.train_loader = get_loader_segment(self.index, 'dataset/' + self.data_path, batch_size=self.batch_size,
+                                               win_size=self.win_size, mode='train', dataset=self.dataset, )
+        self.vali_loader = get_loader_segment(self.index, 'dataset/' + self.data_path, batch_size=self.batch_size,
+                                              win_size=self.win_size, mode='val', dataset=self.dataset)
+        self.test_loader = get_loader_segment(self.index, 'dataset/' + self.data_path, batch_size=self.batch_size,
+                                              win_size=self.win_size, mode='test', dataset=self.dataset)
+        self.thre_loader = get_loader_segment(self.index, 'dataset/' + self.data_path, batch_size=self.batch_size,
+                                              win_size=self.win_size, mode='thre', dataset=self.dataset)
 
         self.build_model()
-        
+
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        
+
         if self.loss_fuc == 'MAE':
             self.criterion = nn.L1Loss()
         elif self.loss_fuc == 'MSE':
             self.criterion = nn.MSELoss()
-        
 
     def build_model(self):
-        self.model = DCdetector(win_size=self.win_size, enc_in=self.input_c, c_out=self.output_c, n_heads=self.n_heads, d_model=self.d_model, e_layers=self.e_layers, patch_size=self.patch_size, channel=self.input_c)
-        
+        self.model = DCdetector(win_size=self.win_size, enc_in=self.input_c, c_out=self.output_c, n_heads=self.n_heads,
+                                d_model=self.d_model, e_layers=self.e_layers, patch_size=self.patch_size,
+                                channel=self.input_c)
+
         if torch.cuda.is_available():
             self.model.cuda()
-            
+
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-        
-        
+
     def vali(self, vali_loader):
         self.model.eval()
         loss_1 = []
@@ -114,7 +135,7 @@ class Solver(object):
                     my_kl_loss(series[u].detach(),
                                (prior[u] / torch.unsqueeze(torch.sum(prior[u], dim=-1), dim=-1).repeat(1, 1, 1,
                                                                                                        self.win_size)))))
-                
+
             series_loss = series_loss / len(prior)
             prior_loss = prior_loss / len(prior)
 
@@ -122,13 +143,13 @@ class Solver(object):
 
         return np.average(loss_1), np.average(loss_2)
 
-
     def train(self):
 
         time_now = time.time()
         path = self.model_save_path
         if not os.path.exists(path):
             os.makedirs(path)
+
         early_stopping = EarlyStopping(patience=5, verbose=True, dataset_name=self.data_path)
         train_steps = len(self.train_loader)
 
@@ -137,13 +158,15 @@ class Solver(object):
 
             epoch_time = time.time()
             self.model.train()
+            # input_data (batch_size, window_size, channel)
             for i, (input_data, labels) in enumerate(self.train_loader):
 
                 self.optimizer.zero_grad()
                 iter_count += 1
                 input = input_data.float().to(self.device)
+                # series: list 9*(128, 1, 105, 105) prior: list 9 * (128, 1, 105, 105)
                 series, prior = self.model(input)
-                
+
                 series_loss = 0.0
                 prior_loss = 0.0
 
@@ -165,7 +188,7 @@ class Solver(object):
                 series_loss = series_loss / len(prior)
                 prior_loss = prior_loss / len(prior)
 
-                loss = prior_loss - series_loss 
+                loss = prior_loss - series_loss
 
                 if (i + 1) % 100 == 0:
                     speed = (time.time() - time_now) / iter_count
@@ -173,7 +196,7 @@ class Solver(object):
                     print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
                     iter_count = 0
                     time_now = time.time()
- 
+
                 loss.backward()
                 self.optimizer.step()
 
@@ -187,7 +210,6 @@ class Solver(object):
                 break
             adjust_learning_rate(self.optimizer, epoch + 1, self.lr)
 
-            
     def test(self):
         self.model.load_state_dict(
             torch.load(
@@ -291,7 +313,7 @@ class Solver(object):
             cri = metric.detach().cpu().numpy()
             attens_energy.append(cri)
             test_labels.append(labels)
-            
+
         attens_energy = np.concatenate(attens_energy, axis=0).reshape(-1)
         test_labels = np.concatenate(test_labels, axis=0).reshape(-1)
         test_energy = np.array(attens_energy)
@@ -299,7 +321,7 @@ class Solver(object):
 
         pred = (test_energy > thresh).astype(int)
         gt = test_labels.astype(int)
-        
+
         matrix = [self.index]
         scores_simple = combine_all_evaluation_scores(pred, gt, test_energy)
         for key, value in scores_simple.items():
@@ -335,11 +357,13 @@ class Solver(object):
 
         accuracy = accuracy_score(gt, pred)
         precision, recall, f_score, support = precision_recall_fscore_support(gt, pred, average='binary')
-        print("Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f} ".format(accuracy, precision, recall, f_score))
-        
+        print(
+            "Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f} ".format(accuracy, precision,
+                                                                                                   recall, f_score))
+
         if self.data_path == 'UCR' or 'UCR_AUG':
             import csv
-            with open('result/'+self.data_path+'.csv', 'a+') as f:
+            with open('result/' + self.data_path + '.csv', 'a+') as f:
                 writer = csv.writer(f)
                 writer.writerow(matrix)
 

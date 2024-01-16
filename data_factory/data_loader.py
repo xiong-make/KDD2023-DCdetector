@@ -127,7 +127,7 @@ class SMAPSegLoader(object):
 
     def __getitem__(self, index):
         index = index * self.step
-        if self.mode == "train": #train and val did not use label
+        if self.mode == "train":  # train and val did not use label
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
         elif (self.mode == 'val'):
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
@@ -146,15 +146,60 @@ class SMDSegLoader(object):
         self.step = step
         self.win_size = win_size
         self.scaler = StandardScaler()
-        data = np.load(data_path + "/SMD_train.npy")[:,:]
+        data = np.load(data_path + "/SMD_train.npy")[:, :]
         self.scaler.fit(data)
         data = self.scaler.transform(data)
-        test_data = np.load(data_path + "/SMD_test.npy")[:,:]
+        test_data = np.load(data_path + "/SMD_test.npy")[:, :]
         self.test = self.scaler.transform(test_data)
         self.train = data
         data_len = len(self.train)
-        self.val = self.train[(int)(data_len * 0.8):]
+        self.val = self.train[int(data_len * 0.8):]
         self.test_labels = np.load(data_path + "/SMD_test_label.npy")[:]
+
+    def __len__(self):
+        if self.mode == "train":
+            return (self.train.shape[0] - self.win_size) // self.step + 1
+        elif self.mode == 'val':
+            return (self.val.shape[0] - self.win_size) // self.step + 1
+        elif self.mode == 'test':
+            return (self.test.shape[0] - self.win_size) // self.step + 1
+        else:
+            return (self.test.shape[0] - self.win_size) // self.win_size + 1
+
+    def __getitem__(self, index):
+        index = index * self.step
+        if self.mode == "train":
+            return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
+        elif self.mode == 'val':
+            return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
+        elif self.mode == 'test':
+            return np.float32(self.test[index:index + self.win_size]), np.float32(
+                self.test_labels[index:index + self.win_size])
+        else:
+            return np.float32(self.test[
+                              index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
+
+
+class UCRSegLoader(object):
+    def __init__(self, index, data_path, win_size, step, mode="train"):
+        self.mode = mode
+        self.step = step
+        self.index = index
+        self.win_size = win_size
+        self.scaler = StandardScaler()
+        data = np.load(data_path + "/UCR_" + str(index) + "_train.npy")
+        self.scaler.fit(data)
+        data = self.scaler.transform(data)
+        test_data = np.load(data_path + "/UCR_" + str(index) + "_test.npy")
+        self.test = self.scaler.transform(test_data)
+
+        self.train = data
+        self.val = self.test
+        self.test_labels = np.load(data_path + "/UCR_" + str(index) + "_test_label.npy")
+        if self.mode == "val":
+            print("train:", self.train.shape)
+            print("test:", self.test.shape)
 
     def __len__(self):
         if self.mode == "train":
@@ -180,52 +225,6 @@ class SMDSegLoader(object):
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
                 self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
 
-        
-        
-class UCRSegLoader(object):
-    def __init__(self, index, data_path, win_size, step, mode="train"):
-        self.mode = mode
-        self.step = step
-        self.index = index
-        self.win_size = win_size
-        self.scaler = StandardScaler()
-        data = np.load(data_path + "/UCR_"+str(index)+"_train.npy")
-        self.scaler.fit(data)
-        data = self.scaler.transform(data)
-        test_data = np.load(data_path + "/UCR_"+str(index)+"_test.npy")
-        self.test = self.scaler.transform(test_data)
-
-        self.train = data
-        self.val = self.test
-        self.test_labels = np.load(data_path + "/UCR_"+str(index)+"_test_label.npy")
-        if self.mode == "val":
-            print("train:", self.train.shape)
-            print("test:", self.test.shape)
-
-    def __len__(self):
-        if self.mode == "train":
-            return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.mode == 'val'):
-            return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.mode == 'test'):
-            return (self.test.shape[0] - self.win_size) // self.step + 1
-        else:
-            return (self.test.shape[0] - self.win_size) // self.win_size + 1
-
-    def __getitem__(self, index):
-        index = index * self.step
-        if self.mode == "train":
-            return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.mode == 'val'):
-            return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.mode == 'test'):
-            return np.float32(self.test[index:index + self.win_size]), np.float32(
-                self.test_labels[index:index + self.win_size])
-        else:
-            return np.float32(self.test[
-                              index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])    
-        
 
 class UCRAUGSegLoader(object):
     def __init__(self, index, data_path, win_size, step, mode="train"):
@@ -234,15 +233,15 @@ class UCRAUGSegLoader(object):
         self.index = index
         self.win_size = win_size
         self.scaler = StandardScaler()
-        data = np.load(data_path + "/UCR_AUG_"+str(index)+"_train.npy")
+        data = np.load(data_path + "/UCR_AUG_" + str(index) + "_train.npy")
         self.scaler.fit(data)
         data = self.scaler.transform(data)
-        test_data = np.load(data_path + "/UCR_AUG_"+str(index)+"_test.npy")
+        test_data = np.load(data_path + "/UCR_AUG_" + str(index) + "_test.npy")
         self.test = self.scaler.transform(test_data)
 
         self.train = data
         self.val = self.test
-        self.test_labels = np.load(data_path + "/UCR_AUG_"+str(index)+"_test_label.npy")
+        self.test_labels = np.load(data_path + "/UCR_AUG_" + str(index) + "_test_label.npy")
         if self.mode == "val":
             print("train:", self.train.shape)
             print("test:", self.test.shape)
@@ -269,8 +268,8 @@ class UCRAUGSegLoader(object):
         else:
             return np.float32(self.test[
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]) 
-        
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
+
 
 class NIPS_TS_WaterSegLoader(object):
     def __init__(self, data_path, win_size, step, mode="train"):
@@ -313,10 +312,9 @@ class NIPS_TS_WaterSegLoader(object):
         else:
             return np.float32(self.test[
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])        
-        
-        
-        
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
+
+
 class NIPS_TS_SwanSegLoader(object):
     def __init__(self, data_path, win_size, step, mode="train"):
         self.mode = mode
@@ -357,8 +355,8 @@ class NIPS_TS_SwanSegLoader(object):
         else:
             return np.float32(self.test[
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]) 
-        
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
+
 
 class NIPS_TS_CCardSegLoader(object):
     def __init__(self, data_path, win_size, step, mode="train"):
@@ -399,11 +397,9 @@ class NIPS_TS_CCardSegLoader(object):
         else:
             return np.float32(self.test[
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]) 
-        
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
 
-        
-        
+
 class SMD_OriSegLoader(object):
     def __init__(self, index, data_path, win_size, step, mode="train"):
         self.mode = mode
@@ -411,15 +407,15 @@ class SMD_OriSegLoader(object):
         self.index = index
         self.win_size = win_size
         self.scaler = StandardScaler()
-        data = np.load(data_path + "/SMD_Ori_"+str(index)+"_train.npy")
+        data = np.load(data_path + "/SMD_Ori_" + str(index) + "_train.npy")
         self.scaler.fit(data)
         data = self.scaler.transform(data)
-        test_data = np.load(data_path + "/SMD_Ori_"+str(index)+"_test.npy")
+        test_data = np.load(data_path + "/SMD_Ori_" + str(index) + "_test.npy")
         self.test = self.scaler.transform(test_data)
 
         self.train = data
         self.val = self.test
-        self.test_labels = np.load(data_path + "/SMD_Ori_"+str(index)+"_test_label.npy")
+        self.test_labels = np.load(data_path + "/SMD_Ori_" + str(index) + "_test_label.npy")
         if self.mode == "val":
             print("train:", self.train.shape)
             print("test:", self.test.shape)
@@ -427,9 +423,9 @@ class SMD_OriSegLoader(object):
     def __len__(self):
         if self.mode == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.mode == 'val'):
+        elif self.mode == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.mode == 'test'):
+        elif self.mode == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -438,15 +434,16 @@ class SMD_OriSegLoader(object):
         index = index * self.step
         if self.mode == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.mode == 'val'):
+        elif self.mode == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.mode == 'test'):
+        elif self.mode == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
             return np.float32(self.test[
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])         
+                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
+
 
 class SWATSegLoader(Dataset):
     def __init__(self, root_path, win_size, step=1, flag="train"):
@@ -467,7 +464,7 @@ class SWATSegLoader(Dataset):
         self.train = train_data
         self.test = test_data
         data_len = len(self.train)
-        self.val = self.train[(int)(data_len * 0.8):]
+        self.val = self.train[int(data_len * 0.8):]
         self.test_labels = labels
         print("test:", self.test.shape)
         print("train:", self.train.shape)
@@ -478,9 +475,9 @@ class SWATSegLoader(Dataset):
         """
         if self.flag == "train":
             return (self.train.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return (self.val.shape[0] - self.win_size) // self.step + 1
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return (self.test.shape[0] - self.win_size) // self.step + 1
         else:
             return (self.test.shape[0] - self.win_size) // self.win_size + 1
@@ -489,9 +486,9 @@ class SWATSegLoader(Dataset):
         index = index * self.step
         if self.flag == "train":
             return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'val'):
+        elif self.flag == 'val':
             return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
-        elif (self.flag == 'test'):
+        elif self.flag == 'test':
             return np.float32(self.test[index:index + self.win_size]), np.float32(
                 self.test_labels[index:index + self.win_size])
         else:
@@ -499,31 +496,31 @@ class SWATSegLoader(Dataset):
                               index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
                 self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
 
-        
+
 def get_loader_segment(index, data_path, batch_size, win_size=100, step=100, mode='train', dataset='KDD'):
-    if (dataset == 'SMD'):
+    if dataset == 'SMD':
         dataset = SMDSegLoader(data_path, win_size, 1, mode)
-    elif (dataset == 'MSL'):
+    elif dataset == 'MSL':
         dataset = MSLSegLoader(data_path, win_size, 1, mode)
-    elif (dataset == 'SMAP'):
+    elif dataset == 'SMAP':
         dataset = SMAPSegLoader(data_path, win_size, 1, mode)
-    elif (dataset == 'PSM'):
+    elif dataset == 'PSM':
         dataset = PSMSegLoader(data_path, win_size, 1, mode)
-    elif (dataset =='SWAT'):
-        dataset = SWATSegLoader(data_path,win_size,1,mode)
-    elif (dataset == 'UCR'):
+    elif dataset == 'SWAT':
+        dataset = SWATSegLoader(data_path, win_size, 1, mode)
+    elif dataset == 'UCR':
         dataset = UCRSegLoader(index, data_path, win_size, 1, mode)
-    elif (dataset == 'UCR_AUG'):
+    elif dataset == 'UCR_AUG':
         dataset = UCRAUGSegLoader(index, data_path, win_size, 1, mode)
-    elif (dataset == 'NIPS_TS_Water'):
+    elif dataset == 'NIPS_TS_Water':
         dataset = NIPS_TS_WaterSegLoader(data_path, win_size, 1, mode)
-    elif (dataset == 'NIPS_TS_Swan'):
+    elif dataset == 'NIPS_TS_Swan':
         dataset = NIPS_TS_SwanSegLoader(data_path, win_size, 1, mode)
-    elif (dataset == 'NIPS_TS_CCard'):
+    elif dataset == 'NIPS_TS_CCard':
         dataset = NIPS_TS_CCardSegLoader(data_path, win_size, 1, mode)
-    elif (dataset == 'SMD_Ori'):
+    elif dataset == 'SMD_Ori':
         dataset = SMD_OriSegLoader(index, data_path, win_size, 1, mode)
-    
+
     shuffle = False
     if mode == 'train':
         shuffle = True
